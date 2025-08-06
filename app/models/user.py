@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Enum
 from datetime import datetime
 from sqlalchemy.orm import relationship
 from .base import Base
@@ -11,7 +12,7 @@ class User(Base):
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
-    role = Column(UserRoles, nullable=False, default=UserRoles.researcher)
+    role = Column(Enum(UserRoles), nullable=False, default=UserRoles.researcher)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
