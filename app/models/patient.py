@@ -18,3 +18,5 @@ class Patient(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     fingerprints = relationship("Fingerprint", back_populates="patient")
+    analyses = relationship("Analyse", back_populates="patient")
+
