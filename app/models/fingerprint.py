@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, ForeignKey, Enum, LargeBinary, DateTime, Text
 from datetime import datetime
 from sqlalchemy.orm import relationship
+from app.models.patient import Patient
 from .base import Base
 from app.constants.enum import HandEnum, FingerEnum, PatternEnum
 
