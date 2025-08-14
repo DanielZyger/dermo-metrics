@@ -24,4 +24,4 @@ def export_fingerprint_image(fingerprint_id, output_path):
         session.close()
 
 if __name__ == "__main__":
-    export_fingerprint_image(fingerprint_id=1, output_path="output_fingerprint.jpg")
+    export_fingerprint_image(fingerprint_id=7, output_path="output_fingerprint.jpg")

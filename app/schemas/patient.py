@@ -18,6 +18,7 @@ class PatientOut(BaseModel):
     phone: Optional[str]
     description: Optional[str]
     created_at: datetime
+    updated_at: datetime
 
     class Config:
         orm_mode = True
