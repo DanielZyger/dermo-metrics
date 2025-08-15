@@ -1,20 +1,20 @@
 from pydantic import BaseModel
 from datetime import datetime
 
-class AnalyseBase(BaseModel):
+class ReviewBase(BaseModel):
     patient_id: int
     user_id: int
     sqtl: int
     delta_indice: int
 
-class AnalyseCreate(AnalyseBase):
+class ReviewCreate(ReviewBase):
     pass
 
-class AnalyseUpdate(BaseModel):
+class ReviewUpdate(BaseModel):
     sqtl: int | None = None
     delta_indice: int | None = None
 
-class AnalyseOut(AnalyseBase):
+class ReviewOut(ReviewBase):
     id: int
     date: datetime
     created_at: datetime

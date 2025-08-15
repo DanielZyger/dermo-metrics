@@ -3,7 +3,7 @@ from app.models.fingerprint import Base
 from app.models.volunteer import Volunteer
 from app.models.user import User
 from app.models.fingerprint import Fingerprint
-from app.models.analyse import Analyse
+from app.models.review import Review
 
 from dotenv import load_dotenv
 import os

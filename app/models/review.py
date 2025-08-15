@@ -3,8 +3,8 @@ from datetime import datetime
 from sqlalchemy.orm import relationship
 from .base import Base
 
-class Analyse(Base):
-    __tablename__ = "analyses"
+class Review(Base):
+    __tablename__ = "reviews"
 
     id = Column(Integer, primary_key=True)
     patient_id = Column(Integer , ForeignKey("volunteers.id"), nullable=False)
@@ -15,6 +15,5 @@ class Analyse(Base):
     sqtl = Column(Integer , nullable=False)
     delta_indice = Column(Integer , nullable=False)
 
-    volunteer = relationship("volunteer", back_populates="analyses")
-    user = relationship("User", back_populates="analyses")
+    volunteer = relationship("Volunteer", back_populates="reviews")
 
