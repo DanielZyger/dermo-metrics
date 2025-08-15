@@ -4,8 +4,8 @@ from sqlalchemy.orm import relationship
 from .base import Base
 from app.constants.enum import GenderEnum
 
-class Patient(Base):
-    __tablename__ = "patients"
+class Volunteer(Base):
+    __tablename__ = "volunteers"
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
@@ -17,7 +17,7 @@ class Patient(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    fingerprints = relationship("Fingerprint", back_populates="patient")
+    fingerprints = relationship("Fingerprint", back_populates="volunteer")
     # analyses = relationship("Analyse", back_populates="patient")
 
 # TODO ANALISAR IMPORTS CICLICOS 

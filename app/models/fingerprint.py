@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, ForeignKey, Enum, LargeBinary, DateTime, Text
 from datetime import datetime
 from sqlalchemy.orm import relationship
-from app.models.patient import Patient
+from app.models.volunteer import Volunteer
 from .base import Base
 from app.constants.enum import HandEnum, FingerEnum, PatternEnum
 
@@ -9,7 +9,7 @@ class Fingerprint(Base):
     __tablename__ = "fingerprints"
 
     id = Column(Integer, primary_key=True)
-    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False)
+    patient_id = Column(Integer, ForeignKey("volunteers.id"), nullable=False)
 
     hand = Column(Enum(HandEnum), nullable=False)
     finger = Column(Enum(FingerEnum), nullable=False)
@@ -22,4 +22,4 @@ class Fingerprint(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    patient = relationship("Patient", back_populates="fingerprints")
+    patient = relationship("Volunteer", back_populates="fingerprints")

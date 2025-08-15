@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 from app.models.fingerprint import Base
-from app.models.patient import Patient
+from app.models.volunteer import Volunteer
 from app.models.user import User
 from app.models.fingerprint import Fingerprint
 from app.models.analyse import Analyse

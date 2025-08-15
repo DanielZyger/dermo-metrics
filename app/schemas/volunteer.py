@@ -3,14 +3,14 @@ from datetime import datetime
 from typing import Optional
 from app.constants.enum import GenderEnum
 
-class PatientCreate(BaseModel):
+class VolunteerCreate(BaseModel):
     name: str
     age: Optional[int]
     description: Optional[str]
     gender: Optional[GenderEnum]
     phone: Optional[str]
 
-class PatientOut(BaseModel):
+class VolunteerOut(BaseModel):
     id: int
     name: str
     age: Optional[int]
