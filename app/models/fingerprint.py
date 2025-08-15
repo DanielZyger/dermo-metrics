@@ -17,8 +17,9 @@ class Fingerprint(Base):
 
     delta = Column(Integer)
     image_data = Column(LargeBinary)
-    notes = Column(Text)
+    image_filtered = Column(LargeBinary)
 
+    notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
