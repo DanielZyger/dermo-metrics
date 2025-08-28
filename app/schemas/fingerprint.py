@@ -19,7 +19,8 @@ class FingerprintOut(BaseModel):
     pattern_type: Optional[PatternEnum]
     delta: Optional[int]
     notes: Optional[str]
-    # image_data: Optional[bytes] = None
+    image_data: Optional[str]
+    image_filtered: Optional[str]
     created_at: datetime
 
     class Config:

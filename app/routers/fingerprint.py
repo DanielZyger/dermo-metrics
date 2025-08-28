@@ -7,7 +7,7 @@ from app.models.fingerprint import Fingerprint
 from app.constants.enum import FingerEnum, HandEnum, PatternEnum
 from app.db import get_db
 from app.utils.process_images import process
-
+from app.utils.to_base_64 import to_base64
 
 router = APIRouter(prefix="/fingerprints", tags=["Fingerprints"])
 
@@ -53,7 +53,19 @@ async def create_fingerprint(
     db.add(new_fp)
     db.commit()
     db.refresh(new_fp)
-    return new_fp
+
+    return FingerprintOut(
+        id=new_fp.id,
+        volunteer_id=new_fp.volunteer_id,
+        hand=new_fp.hand,
+        finger=new_fp.finger,
+        pattern_type=new_fp.pattern_type,
+        delta=new_fp.delta,
+        notes=new_fp.notes,
+        image_data=to_base64(new_fp.image_data),
+        image_filtered=to_base64(new_fp.image_filtered),
+        created_at=new_fp.created_at
+    )
 
 
 @router.put("/{fingerprint_id}", response_model=FingerprintOut)

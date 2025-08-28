@@ -23,7 +23,7 @@ def process(image_bytes: bytes) -> bytes:
     gamma = 0.5
 
     for theta in np.linspace(0, np.pi, num_orientations, endpoint=False):
-        kernel = cv2.getGaborKernel((ksize, ksize), sigma, theta, lambd, gamma, 0, ktype=cv2.CV_32F)
+        kernel = cv2.getGaborKernel((20, 20), sigma, theta, lambd, gamma, 0, ktype=cv2.CV_32F)
         filtered = cv2.filter2D(enhanced, cv2.CV_32F, kernel)
         gabor_sum = np.maximum(gabor_sum, filtered)
 
@@ -34,6 +34,10 @@ def process(image_bytes: bytes) -> bytes:
 
     # 4. Binarização (Otsu)
     _, binary = cv2.threshold(gabor_normalized, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # k = np.ones((3, 3), np.uint8)  # Define 5x5 kernel
+    # inv = cv2.bitwise_not(binary)                                 
+    # out = cv2.erode(inv, k, 1)              
 
     # ✅ Converte resultado final para PNG (bytes)
     success, encoded_img = cv2.imencode(".png", binary)

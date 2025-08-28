@@ -6,5 +6,6 @@ uvicorn
 python-dotenv
 python-multipart
 
+matplotlib
 # opencv-python
 # numpy
