@@ -2,6 +2,7 @@ from app.db import SessionLocal
 from app.models.fingerprint import Fingerprint
 
 def export_fingerprint_image(fingerprint_id, output_path):
+    filtered_path = 'fingerprint_filtered.jpg'
     session = SessionLocal()
     try:
         # Busca a impressão digital pelo ID
@@ -15,6 +16,9 @@ def export_fingerprint_image(fingerprint_id, output_path):
             with open(output_path, "wb") as out_file:
                 out_file.write(fingerprint.image_data)
             print(f"Imagem exportada com sucesso para: {output_path}")
+            with open(filtered_path, "wb") as out_file:
+                out_file.write(fingerprint.image_filtered)
+            print(f"Imagem exportada com sucesso para: {filtered_path}")
         else:
             print("Impressão digital não contém dados de imagem.")
 
@@ -24,4 +28,4 @@ def export_fingerprint_image(fingerprint_id, output_path):
         session.close()
 
 if __name__ == "__main__":
-    export_fingerprint_image(fingerprint_id=7, output_path="output_fingerprint.jpg")
+    export_fingerprint_image(fingerprint_id=8, output_path="output_fingerprint.jpg")

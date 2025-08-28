@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from app.models.fingerprint import Base
 from app.models.volunteer import Volunteer
 from app.models.project import Project
@@ -13,9 +13,16 @@ import os
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-
 engine = create_engine(DATABASE_URL)
 
+with engine.connect() as conn:
+    conn.execute(text("DROP SCHEMA public CASCADE;"))
+    conn.execute(text("CREATE SCHEMA public;"))
+    conn.commit()
+
+print("Schema limpo com sucesso!")
+
+print("Criando tabelas...")
 Base.metadata.create_all(bind=engine)
 
-print("Tabelas criadas com sucesso!")
+print("Banco de dados resetado com sucesso!")

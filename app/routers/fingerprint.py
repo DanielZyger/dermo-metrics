@@ -6,6 +6,7 @@ from app.models.volunteer import Volunteer
 from app.models.fingerprint import Fingerprint
 from app.constants.enum import FingerEnum, HandEnum, PatternEnum
 from app.db import get_db
+from app.utils.process_images import process
 
 
 router = APIRouter(prefix="/fingerprints", tags=["Fingerprints"])
@@ -36,6 +37,7 @@ async def create_fingerprint(
         raise HTTPException(status_code=404, detail="Volunteer not found")
 
     image_bytes = await image_data.read()
+    image_filtered = process(image_bytes)
 
     new_fp = Fingerprint(
         volunteer_id=volunteer_id,
@@ -45,6 +47,7 @@ async def create_fingerprint(
         delta=delta,
         notes=notes,
         image_data=image_bytes,
+        image_filtered=image_filtered,
         created_at=datetime.now()
     )
     db.add(new_fp)

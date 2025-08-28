@@ -9,7 +9,7 @@ class Fingerprint(Base):
     __tablename__ = "fingerprints"
 
     id = Column(Integer, primary_key=True)
-    patient_id = Column(Integer, ForeignKey("volunteers.id"), nullable=False)
+    volunteer_id = Column(Integer, ForeignKey("volunteers.id"), nullable=False)
 
     hand = Column(Enum(HandEnum), nullable=False)
     finger = Column(Enum(FingerEnum), nullable=False)
@@ -23,4 +23,4 @@ class Fingerprint(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    patient = relationship("Volunteer", back_populates="fingerprints")
+    volunteer = relationship("Volunteer", back_populates="fingerprints")

@@ -8,12 +8,9 @@ from app.db import get_db
 router = APIRouter(prefix="/volunteers", tags=["Volunteer"])
 
 @router.get("/", response_model=list[VolunteerOut])
-def list_volunteers():
-    return [{
-        "id": 1, "name": "Maria Souza", "age": 30, "gender": "female",
-        "phone": "11999999999", "description": "Paciente exemplo",
-        "created_at": datetime.now()
-    }]
+def list_volunteers(db: Session = Depends(get_db)):
+    volunteers = db.query(Volunteer).all()
+    return volunteers
 
 @router.post("/", response_model=VolunteerOut)
 def create_volunteer(volunteer: VolunteerCreate, db: Session = Depends(get_db)):

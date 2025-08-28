@@ -4,7 +4,7 @@ from typing import Optional
 from app.constants.enum import HandEnum, FingerEnum, PatternEnum
 
 class FingerprintCreate(BaseModel):
-    patient_id: int
+    volunteer_id: int
     hand: HandEnum
     finger: FingerEnum
     pattern_type: Optional[PatternEnum]
@@ -13,7 +13,7 @@ class FingerprintCreate(BaseModel):
 
 class FingerprintOut(BaseModel):
     id: int
-    patient_id: int
+    volunteer_id: int
     hand: HandEnum
     finger: FingerEnum
     pattern_type: Optional[PatternEnum]

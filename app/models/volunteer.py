@@ -14,8 +14,8 @@ class Volunteer(Base):
     gender = Column(Enum(GenderEnum))
     phone = Column(String)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     fingerprints = relationship("Fingerprint", back_populates="volunteer")
     # analyses = relationship("Analyse", back_populates="patient")
