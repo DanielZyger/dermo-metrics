@@ -15,5 +15,5 @@ class Review(Base):
     sqtl = Column(Integer , nullable=False)
     delta_indice = Column(Integer , nullable=False)
 
-    volunteer = relationship("Volunteer", back_populates="reviews")
+    # volunteer = relationship("Volunteer", back_populates="reviews")
 

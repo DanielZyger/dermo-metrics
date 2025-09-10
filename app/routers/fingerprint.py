@@ -12,14 +12,33 @@ from app.utils.to_base_64 import to_base64
 router = APIRouter(prefix="/fingerprints", tags=["Fingerprints"])
 
 @router.get("/", response_model=list[FingerprintOut])
-def list_fingerprints():
-    return [{
-        "id": 1, "volunteer_id": 1, "hand": "left", "finger": "thumb",
-        "pattern_type": "loop", "delta": 2, "notes": "Primeira digital",
-        "created_at": datetime.now()
-    }]
-
-from fastapi import Form, File, UploadFile
+def list_fingerprints(db: Session = Depends(get_db)):
+    
+    try:
+        fingerprints = db.query(Fingerprint).order_by(Fingerprint.created_at.desc()).all()
+        mapped_fingerprints = [
+            {
+                "id": fp.id,
+                "volunteer_id": fp.volunteer_id,
+                "hand": fp.hand,
+                "finger": fp.finger,
+                "pattern_type": fp.pattern_type,
+                "delta": fp.delta,
+                "notes": fp.notes,
+                "image_data": to_base64(fp.image_data),
+                "image_filtered": to_base64(fp.image_filtered),
+                "created_at": fp.created_at,
+            }
+            for fp in fingerprints
+        ]
+        
+        return mapped_fingerprints
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro interno do servidor: {str(e)}"
+        )
 
 @router.post("/", response_model=FingerprintOut)
 async def create_fingerprint(

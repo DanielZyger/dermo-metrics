@@ -18,7 +18,4 @@ class Volunteer(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     fingerprints = relationship("Fingerprint", back_populates="volunteer")
-    # analyses = relationship("Analyse", back_populates="patient")
-
-# TODO ANALISAR IMPORTS CICLICOS 
 

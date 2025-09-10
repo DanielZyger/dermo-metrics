@@ -14,7 +14,7 @@ class FingerEnum(enum.Enum):
     index = "index"
     middle = "middle"
     ring = "ring"
-    little = "little"
+    pinky = "pinky"
 
 class PatternEnum(enum.Enum):
     loop = "loop"
