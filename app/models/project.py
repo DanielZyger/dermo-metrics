@@ -13,4 +13,5 @@ class Project(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    volunteers = relationship("Volunteer", back_populates="project")
     users = relationship("UserProject", back_populates="project")

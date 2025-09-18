@@ -7,7 +7,6 @@ from app.constants.enum import UserRoles
 class UserCreate(BaseModel):
     name: str
     email: str
-    password: str
     project_id: Optional[int] = None
     role: Optional[UserRoles] = UserRoles.researcher
 

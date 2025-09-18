@@ -7,7 +7,7 @@ class ProjectBase(BaseModel):
     description: Optional[str] = None
 
 class ProjectCreate(ProjectBase):
-    pass
+    user_id: Optional[int] = None
 
 class ProjectUpdate(ProjectBase):
     name: Optional[str] = None

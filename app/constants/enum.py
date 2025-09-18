@@ -21,6 +21,11 @@ class PatternEnum(enum.Enum):
     whorl = "whorl"
     arch = "arch"
 
+class VolunteerStatuses(enum.Enum):
+    pending = "pending"
+    incompleted = "incompleted"
+    completed = "completed"
+
 class UserRoles(enum.Enum):
     admin = 'admin' # can do everything
     researcher = 'researcher' # almost everything, is the main user

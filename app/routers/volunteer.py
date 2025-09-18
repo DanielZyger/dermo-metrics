@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Path, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.schemas.volunteer import VolunteerCreate, VolunteerOut
 from datetime import datetime
 from app.models.volunteer import Volunteer
+from app.constants.enum import VolunteerStatuses
 from app.db import get_db
 
 router = APIRouter(prefix="/volunteers", tags=["Volunteer"])
@@ -13,8 +14,16 @@ def list_volunteers(db: Session = Depends(get_db)):
     return volunteers
 
 @router.get("/{volunteer_id}", response_model=VolunteerOut)
-def get_volunteer(volunteer_id: int = Path(..., description="ID do voluntário"), db: Session = Depends(get_db)):
-    volunteer = db.query(Volunteer).filter(Volunteer.id == volunteer_id).first()
+def get_volunteer(
+    volunteer_id: int = Path(..., description="ID do voluntário"),
+    db: Session = Depends(get_db),
+):
+    volunteer = (
+        db.query(Volunteer)
+        .options(joinedload(Volunteer.fingerprints))  # 👈 força carregar fingerprints
+        .filter(Volunteer.id == volunteer_id)
+        .first()
+    )
     
     if not volunteer:
         raise HTTPException(
@@ -28,6 +37,9 @@ def get_volunteer(volunteer_id: int = Path(..., description="ID do voluntário")
 def create_volunteer(volunteer: VolunteerCreate, db: Session = Depends(get_db)):
     new_volunteer = Volunteer(
         name=volunteer.name,
+        project_id=volunteer.project_id,
+        weight = volunteer.weight,
+        height = volunteer.height,
         age=volunteer.age,
         gender=volunteer.gender,
         phone=volunteer.phone,

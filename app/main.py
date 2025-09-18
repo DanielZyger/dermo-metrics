@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from app.routers import user, fingerprint, auth, volunteer, project
+from starlette.middleware.sessions import SessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 app = FastAPI(title="TCC Dermatóglifo API", version="1.0")
+
+app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "supersecret"))
 
 origins = [
     "http://localhost:8080",

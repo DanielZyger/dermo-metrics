@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Path, Depends, HTTPException
+from fastapi import APIRouter, Path, Depends, HTTPException, Form
+from typing import Optional
 from sqlalchemy.orm import Session
 from app.schemas.project import ProjectCreate, ProjectOut
 from datetime import datetime
+from app.models.user_project import UserProject
 from app.models.project import Project
 from app.db import get_db
 
@@ -25,16 +27,22 @@ def get_project(project_id: int = Path(..., description="ID do projeto"), db: Se
     return project
 
 @router.post("/", response_model=ProjectOut)
-def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
+def create_project(user_id: Optional[str] = Form(None), name: str = Form(None), description: str = Form(None), db: Session = Depends(get_db)):
     new_project = Project(
-        name=project.name,
-        description=project.description,
+        name= name,
+        description= description,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )
     db.add(new_project)
     db.commit()
     db.refresh(new_project)
+
+    if user_id:
+        user_project = UserProject(user_id=int(user_id), project_id=new_project.id)
+        db.add(user_project)
+        db.commit()
+
     return new_project
 
 @router.put("/{project_id}", response_model=ProjectOut)
