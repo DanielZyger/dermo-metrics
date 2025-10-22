@@ -54,8 +54,8 @@ def create_volunteer(volunteer: VolunteerCreate, db: Session = Depends(get_db)):
 
 @router.put("/{volunteer_id}", response_model=VolunteerOut)
 def update_volunteer(
-    volunteer_id: int = Path(..., description="ID do voluntário"), 
-    volunteer: VolunteerCreate = ..., 
+    volunteer: VolunteerCreate,
+    volunteer_id: int = Path(..., description="ID do voluntário"),
     db: Session = Depends(get_db)
 ):
     existing_volunteer = db.query(Volunteer).filter(Volunteer.id == volunteer_id).first()
@@ -66,12 +66,14 @@ def update_volunteer(
             detail=f"Voluntário com ID {volunteer_id} não encontrado"
         )
     
-    # Atualizar os campos
     existing_volunteer.name = volunteer.name
     existing_volunteer.age = volunteer.age
+    existing_volunteer.weight = volunteer.weight
+    existing_volunteer.height = volunteer.height
     existing_volunteer.gender = volunteer.gender
     existing_volunteer.phone = volunteer.phone
     existing_volunteer.description = volunteer.description
+    existing_volunteer.project_id = volunteer.project_id
     existing_volunteer.updated_at = datetime.now()
     
     db.commit()
