@@ -15,3 +15,8 @@ class Project(Base):
 
     volunteers = relationship("Volunteer", back_populates="project")
     users = relationship("UserProject", back_populates="project")
+    users = relationship(
+        "UserProject",
+        back_populates="project",
+        cascade="all, delete-orphan"
+    )

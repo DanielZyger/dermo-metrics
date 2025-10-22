@@ -51,7 +51,14 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         payload = {"user_id": user.id, "email": user.email}
         jwt_token = jwt.encode(payload, os.getenv("JWT_SECRET"), algorithm=os.getenv("JWT_ALGORITHM"))
 
-        redirect_url = f"http://localhost:8080/create-project?token={jwt_token}&user_id={user.id}"
+        if user:
+            has_projects = len(user.projects) > 0
+
+            if has_projects:
+                redirect_url = f"http://localhost:8080/home?token={jwt_token}&user_id={user.id}"
+            else:
+                redirect_url = f"http://localhost:8080/create-project?token={jwt_token}&user_id={user.id}"
+
         return RedirectResponse(url=redirect_url)
 
     except Exception as e:

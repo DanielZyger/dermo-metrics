@@ -47,10 +47,11 @@ def create_project(user_id: Optional[str] = Form(None), name: str = Form(None), 
 
 @router.put("/{project_id}", response_model=ProjectOut)
 def update_project(
-    project_id: int = Path(..., description="ID do projeto"), 
-    project: ProjectCreate = ..., 
-    db: Session = Depends(get_db)
-):
+        project_id: int = Path(..., description="ID do projeto"), 
+        name: str = Form(None), 
+        description: str = Form(None), 
+        db: Session = Depends(get_db)
+    ):
     existing_project = db.query(Project).filter(Project.id == project_id).first()
     
     if not existing_project:
@@ -59,8 +60,8 @@ def update_project(
             detail=f"Projeto com ID {project_id} não encontrado"
         )
     
-    existing_project.name = project.name
-    existing_project.description = project.description
+    existing_project.name = name
+    existing_project.description = description
     existing_project.updated_at = datetime.utcnow()
     
     db.commit()
