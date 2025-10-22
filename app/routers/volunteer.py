@@ -13,6 +13,15 @@ def list_volunteers(db: Session = Depends(get_db)):
     volunteers = db.query(Volunteer).all()
     return volunteers
 
+@router.get("/by-project/{project_id}", response_model=list[VolunteerOut])
+def list_volunteers_by_project(
+    project_id: int = Path(..., description="ID do projeto"),
+    db: Session = Depends(get_db)
+):
+    volunteers = db.query(Volunteer).filter(Volunteer.project_id == project_id).all()
+
+    return volunteers
+
 @router.get("/{volunteer_id}", response_model=VolunteerOut)
 def get_volunteer(
     volunteer_id: int = Path(..., description="ID do voluntário"),
