@@ -23,8 +23,8 @@ class FingerprintOut(BaseModel):
     delta: Optional[int]
     notes: Optional[str]
     number_of_lines: Optional[int]
-    image_data: Optional[str]
-    image_filtered: Optional[str]
+    image_data: Optional[bytes]
+    image_filtered: Optional[bytes]
     image_processed: Optional[str] = None
     created_at: datetime
 
