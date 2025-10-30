@@ -8,6 +8,7 @@ from app.constants.enum import FingerEnum, HandEnum, PatternEnum
 from app.db import get_db
 from app.utils.process_images import process
 from app.utils.to_base_64 import to_base64
+import base64
 
 router = APIRouter(prefix="/fingerprints", tags=["Fingerprints"])
 
@@ -144,9 +145,13 @@ async def update_fingerprint(
     existing_fingerprint.delta = delta
     existing_fingerprint.notes = notes
     existing_fingerprint.number_of_lines = number_of_lines
-    existing_fingerprint.image_data = image_data
-    existing_fingerprint.image_filtered = image_filtered
     existing_fingerprint.updated_at = datetime.now()
+
+    if image_data is not None:
+        existing_fingerprint.image_data = base64.b64decode(image_data)
+    
+    if image_filtered is not None:
+        existing_fingerprint.image_filtered = base64.b64decode(image_filtered)
 
     if image_processed is not None:
         existing_fingerprint.image_processed = await image_processed.read()
@@ -155,22 +160,20 @@ async def update_fingerprint(
     db.refresh(existing_fingerprint)
 
     # Retorna o schema de saída
-    # return FingerprintOut(
-    #     id=existing_fingerprint.id,
-    #     volunteer_id=existing_fingerprint.volunteer_id,
-    #     hand=existing_fingerprint.hand,
-    #     finger=existing_fingerprint.finger,
-    #     pattern_type=existing_fingerprint.pattern_type,
-    #     delta=existing_fingerprint.delta,
-    #     notes=existing_fingerprint.notes,
-    #     number_of_lines=existing_fingerprint.number_of_lines,
-    #     image_data=to_base64(existing_fingerprint.image_data),
-    #     image_filtered=to_base64(existing_fingerprint.image_filtered),
-    #     created_at=existing_fingerprint.created_at,
-    #     updated_at=existing_fingerprint.updated_at,
-    # )
-    return existing_fingerprint
-
+    return FingerprintOut(
+        id=existing_fingerprint.id,
+        volunteer_id=existing_fingerprint.volunteer_id,
+        hand=existing_fingerprint.hand,
+        finger=existing_fingerprint.finger,
+        pattern_type=existing_fingerprint.pattern_type,
+        delta=existing_fingerprint.delta,
+        notes=existing_fingerprint.notes,
+        number_of_lines=existing_fingerprint.number_of_lines,
+        image_data=existing_fingerprint.image_data,
+        image_filtered=existing_fingerprint.image_filtered,
+        created_at=existing_fingerprint.created_at,
+        updated_at=existing_fingerprint.updated_at,
+    )
 
 @router.delete("/{fingerprint_id}")
 def delete_fingerprint(fingerprint_id: int = Path(...)):
