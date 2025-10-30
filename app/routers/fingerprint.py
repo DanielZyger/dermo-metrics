@@ -25,8 +25,10 @@ def list_fingerprints(db: Session = Depends(get_db)):
                 "pattern_type": fp.pattern_type,
                 "delta": fp.delta,
                 "notes": fp.notes,
+                "number_of_lines": fp.number_of_lines,
                 "image_data": to_base64(fp.image_data),
                 "image_filtered": to_base64(fp.image_filtered),
+                "image_processed": to_base64(fp.image_processed),
                 "created_at": fp.created_at,
             }
             for fp in fingerprints
@@ -39,6 +41,25 @@ def list_fingerprints(db: Session = Depends(get_db)):
             status_code=500,
             detail=f"Erro interno do servidor: {str(e)}"
         )
+    
+@router.get("/{fingerprint_id}", response_model=FingerprintOut)
+def get_volunteer(
+    fingerprint_id: int = Path(..., description="ID da digital"),
+    db: Session = Depends(get_db),
+):
+    fingerprint = (
+        db.query(Fingerprint)
+        .filter(Fingerprint.id == fingerprint_id)
+        .first()
+    )
+    
+    if not fingerprint:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Fingerprint com ID {fingerprint_id} não encontrado"
+        )
+    
+    return fingerprint
 
 @router.post("/", response_model=FingerprintOut)
 async def create_fingerprint(
@@ -47,6 +68,7 @@ async def create_fingerprint(
     finger: FingerEnum = Form(...),
     pattern_type: PatternEnum = Form(None),
     delta: int = Form(None),
+    number_of_lines: int = Form(None),
     notes: str = Form(None),
     image_data: UploadFile = File(...),
     db: Session = Depends(get_db)
@@ -65,6 +87,7 @@ async def create_fingerprint(
         pattern_type=pattern_type,
         delta=delta,
         notes=notes,
+        number_of_lines=number_of_lines,
         image_data=image_bytes,
         image_filtered=image_filtered,
         created_at=datetime.now()
@@ -81,19 +104,73 @@ async def create_fingerprint(
         pattern_type=new_fp.pattern_type,
         delta=new_fp.delta,
         notes=new_fp.notes,
+        number_of_lines=number_of_lines,
         image_data=to_base64(new_fp.image_data),
         image_filtered=to_base64(new_fp.image_filtered),
         created_at=new_fp.created_at
     )
 
-
 @router.put("/{fingerprint_id}", response_model=FingerprintOut)
-def update_fingerprint(fingerprint_id: int = Path(...), fp: FingerprintCreate = ...):
-    return {
-        "id": fingerprint_id, "volunteer_id": fp.volunteer_id, "hand": fp.hand,
-        "finger": fp.finger, "pattern_type": fp.pattern_type,
-        "delta": fp.delta, "notes": fp.notes, "created_at": datetime.now()
-    }
+async def update_fingerprint(
+    fingerprint_id: int = Path(...),
+    volunteer_id: int = Form(...),
+    hand: HandEnum = Form(...),
+    finger: FingerEnum = Form(...),
+    pattern_type: PatternEnum | None = Form(None),
+    delta: int | None = Form(None),
+    notes: str | None = Form(None),
+    number_of_lines: int | None = Form(None),
+    image_data: str | None = Form(None),
+    image_filtered: str | None = Form(None),
+    image_processed: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+):
+    existing_fingerprint = (
+        db.query(Fingerprint)
+        .filter(Fingerprint.id == fingerprint_id)
+        .first()
+    )
+    if not existing_fingerprint:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Fingerprint com ID {fingerprint_id} não encontrado",
+        )
+
+    # Atualiza apenas os campos fornecidos
+    existing_fingerprint.volunteer_id = volunteer_id
+    existing_fingerprint.hand = hand
+    existing_fingerprint.finger = finger
+    existing_fingerprint.pattern_type = pattern_type
+    existing_fingerprint.delta = delta
+    existing_fingerprint.notes = notes
+    existing_fingerprint.number_of_lines = number_of_lines
+    existing_fingerprint.image_data = image_data
+    existing_fingerprint.image_filtered = image_filtered
+    existing_fingerprint.updated_at = datetime.now()
+
+    if image_processed is not None:
+        existing_fingerprint.image_processed = await image_processed.read()
+
+    db.commit()
+    db.refresh(existing_fingerprint)
+
+    # Retorna o schema de saída
+    # return FingerprintOut(
+    #     id=existing_fingerprint.id,
+    #     volunteer_id=existing_fingerprint.volunteer_id,
+    #     hand=existing_fingerprint.hand,
+    #     finger=existing_fingerprint.finger,
+    #     pattern_type=existing_fingerprint.pattern_type,
+    #     delta=existing_fingerprint.delta,
+    #     notes=existing_fingerprint.notes,
+    #     number_of_lines=existing_fingerprint.number_of_lines,
+    #     image_data=to_base64(existing_fingerprint.image_data),
+    #     image_filtered=to_base64(existing_fingerprint.image_filtered),
+    #     created_at=existing_fingerprint.created_at,
+    #     updated_at=existing_fingerprint.updated_at,
+    # )
+    return existing_fingerprint
+
 
 @router.delete("/{fingerprint_id}")
 def delete_fingerprint(fingerprint_id: int = Path(...)):
