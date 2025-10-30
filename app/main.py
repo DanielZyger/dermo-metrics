@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.routers import user, fingerprint, auth, volunteer, project
+from app.routers import user, fingerprint, auth, volunteer, project, image_detection
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -22,6 +22,7 @@ app.add_middleware(
     expose_headers=["*"]
 )
 
+app.include_router(image_detection.router, prefix="/fingerprint", tags=["fingerprint"])
 app.include_router(auth.router)
 app.include_router(user.router)
 app.include_router(project.router)

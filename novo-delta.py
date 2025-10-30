@@ -391,7 +391,7 @@ class SimpleFingerprintDetector:
 
 
 if __name__ == "__main__":
-    image_path = 'assets/images/deltaandcore.png'
+    image_path = 'assets/images/fingerprint.jpeg'
     
     try:
         # Cria o detector
