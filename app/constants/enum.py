@@ -3,7 +3,7 @@ import enum
 class GenderEnum(enum.Enum):
     male = "male"
     female = "female"
-    other = "other"
+    intersex = "intersex"
 
 class HandEnum(enum.Enum):
     left = "left"
