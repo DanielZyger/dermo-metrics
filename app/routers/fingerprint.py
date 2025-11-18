@@ -26,10 +26,9 @@ def list_fingerprints(db: Session = Depends(get_db)):
                 "pattern_type": fp.pattern_type,
                 "delta": fp.delta,
                 "notes": fp.notes,
-                "number_of_lines": fp.number_of_lines,
+                "ridge_counts": fp.ridge_counts,
                 "image_data": to_base64(fp.image_data),
                 "image_filtered": to_base64(fp.image_filtered),
-                "image_processed": to_base64(fp.image_processed),
                 "created_at": fp.created_at,
             }
             for fp in fingerprints
@@ -69,7 +68,7 @@ async def create_fingerprint(
     finger: FingerEnum = Form(...),
     pattern_type: PatternEnum = Form(None),
     delta: int = Form(None),
-    number_of_lines: int = Form(None),
+    ridge_counts: int = Form(None),
     notes: str = Form(None),
     image_data: UploadFile = File(...),
     db: Session = Depends(get_db)
@@ -88,7 +87,7 @@ async def create_fingerprint(
         pattern_type=pattern_type,
         delta=delta,
         notes=notes,
-        number_of_lines=number_of_lines,
+        ridge_counts=ridge_counts,
         image_data=image_bytes,
         image_filtered=image_filtered,
         created_at=datetime.now()
@@ -105,7 +104,7 @@ async def create_fingerprint(
         pattern_type=new_fp.pattern_type,
         delta=new_fp.delta,
         notes=new_fp.notes,
-        number_of_lines=number_of_lines,
+        ridge_counts=ridge_counts,
         image_data=to_base64(new_fp.image_data),
         image_filtered=to_base64(new_fp.image_filtered),
         created_at=new_fp.created_at
@@ -120,10 +119,9 @@ async def update_fingerprint(
     pattern_type: PatternEnum | None = Form(None),
     delta: int | None = Form(None),
     notes: str | None = Form(None),
-    number_of_lines: int | None = Form(None),
+    ridge_counts: int | None = Form(None),
     image_data: str | None = Form(None),
     image_filtered: str | None = Form(None),
-    image_processed: UploadFile | None = File(None),
     db: Session = Depends(get_db),
 ):
     existing_fingerprint = (
@@ -144,7 +142,7 @@ async def update_fingerprint(
     existing_fingerprint.pattern_type = pattern_type
     existing_fingerprint.delta = delta
     existing_fingerprint.notes = notes
-    existing_fingerprint.number_of_lines = number_of_lines
+    existing_fingerprint.ridge_counts = ridge_counts
     existing_fingerprint.updated_at = datetime.now()
 
     if image_data is not None:
@@ -152,9 +150,6 @@ async def update_fingerprint(
     
     if image_filtered is not None:
         existing_fingerprint.image_filtered = base64.b64decode(image_filtered)
-
-    if image_processed is not None:
-        existing_fingerprint.image_processed = await image_processed.read()
 
     db.commit()
     db.refresh(existing_fingerprint)
@@ -168,7 +163,7 @@ async def update_fingerprint(
         pattern_type=existing_fingerprint.pattern_type,
         delta=existing_fingerprint.delta,
         notes=existing_fingerprint.notes,
-        number_of_lines=existing_fingerprint.number_of_lines,
+        ridge_counts=existing_fingerprint.ridge_counts,
         image_data=existing_fingerprint.image_data,
         image_filtered=existing_fingerprint.image_filtered,
         created_at=existing_fingerprint.created_at,

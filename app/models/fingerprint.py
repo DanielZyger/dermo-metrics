@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy.orm import relationship
 from .base import Base
 from app.constants.enum import HandEnum, FingerEnum, PatternEnum
+from sqlalchemy.dialects.postgresql import JSONB 
 
 class Fingerprint(Base):
     __tablename__ = "fingerprints"
@@ -17,9 +18,11 @@ class Fingerprint(Base):
     delta = Column(Integer)
     image_data = Column(LargeBinary)
     image_filtered = Column(LargeBinary)
-    image_processed = Column(LargeBinary)
 
-    number_of_lines = Column(Integer)
+    core = Column(JSONB)
+    deltas = Column(JSONB)
+
+    ridge_counts = Column(Integer)
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
