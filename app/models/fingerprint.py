@@ -15,7 +15,7 @@ class Fingerprint(Base):
     finger = Column(Enum(FingerEnum), nullable=False)
     pattern_type = Column(Enum(PatternEnum))
 
-    delta = Column(Integer)
+    number_deltas = Column(Integer)
     image_data = Column(LargeBinary)
     image_filtered = Column(LargeBinary)
 

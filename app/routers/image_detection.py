@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from enum import Enum
 from app.db import get_db
 from app.utils.count_ridges import count_ridges_between_minimal
-from app.utils.type_fingerprint import detect_pattern_type
+from app.utils.type_fingerprint import detect_fingerprint_type
 
 router = APIRouter()
 
@@ -422,12 +422,51 @@ async def detect_singular_points(
                 detail="A fingerprint não possui imagem filtered (image_filtered)"
             )
 
+    # Decodifica a imagem (usada apenas para largura/altura neste early-return
     try:
         image = decode_binary_image(image_bytes)
+        img_h, img_w = int(image.shape[0]), int(image.shape[1])
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao decodificar imagem: {e}")
+
+    # 🚀 EARLY RETURN: se fingerprint já tem core e deltas, não processa de novo
+    if fingerprint.core and fingerprint.deltas and isinstance(fingerprint.deltas, list) and len(fingerprint.deltas) > 0:
+        try:
+            # Converte deltas salvos no banco para DetectionPoint
+            delta_points = [
+                DetectionPoint(
+                    x=int(d.get("x")),
+                    y=int(d.get("y"))
+                )
+                for d in fingerprint.deltas
+                if d is not None and "x" in d and "y" in d
+            ]
+
+            core_points: List[DetectionPoint] = []
+            if isinstance(fingerprint.core, dict) and "x" in fingerprint.core and "y" in fingerprint.core:
+                core_points.append(
+                    DetectionPoint(
+                        x=int(fingerprint.core.get("x")),
+                        y=int(fingerprint.core.get("y"))
+                    )
+                )
+
+            return DetectionResult(
+                deltas=delta_points,
+                cores=core_points,
+                ridge_counts=fingerprint.ridge_counts,
+                pattern_type=fingerprint.pattern_type,
+                image_width=img_w,
+                image_height=img_h
+            )
+        except Exception as e:
+            # Se algo der errado ao ler os dados do banco, cai para o fluxo normal
+            # de detecção, em vez de quebrar a rota inteira
+            pass
+
+    # 🔽 A partir daqui mantém o fluxo original de detecção
 
     try:
         detector = SimpleFingerprintDetector(image)
@@ -448,12 +487,12 @@ async def detect_singular_points(
     core_points = [DetectionPoint(x=int(round(c['x'])), y=int(round(c['y']))) for c in cores] if cores else []
 
     try:
-        tipo, meta = detect_pattern_type(deltas=deltas, cores=cores)
-    except Exception as e:
+        tipo, meta = detect_fingerprint_type(deltas=deltas, cores=cores)
+    except Exception:
         tipo = None
 
-    # calcula ridge count: None por padrão
     ridge_count_value: Optional[int] = None
+    nearest_core: Optional[DetectionPoint] = None
 
     if len(delta_points) > 0 and len(core_points) > 0:
         d = delta_points[0]
@@ -464,7 +503,6 @@ async def detect_singular_points(
         nearest_idx = int(np.argmin(dists))
         nearest_core = core_points[nearest_idx]
 
-        # chama a função de contagem e captura erro localmente
         try:
             ridge_count_value = int(count_ridges_between_minimal(
                 image_gray=image,
@@ -475,11 +513,36 @@ async def detect_singular_points(
         except Exception:
             ridge_count_value = None
 
+    try:
+        fingerprint.pattern_type = tipo if tipo is not None else None
+        fingerprint.ridge_counts = ridge_count_value
+
+        if nearest_core:
+            fingerprint.core = {"x": int(nearest_core.x), "y": int(nearest_core.y)}
+        elif core_points:
+            c = core_points[0]
+            fingerprint.core = {"x": int(c.x), "y": int(c.y)}
+        else:
+            fingerprint.core = None
+
+        if delta_points:
+            fingerprint.deltas = [{"x": int(p.x), "y": int(p.y)} for p in delta_points]
+        else:
+            fingerprint.deltas = None
+
+        db.add(fingerprint)
+        db.commit()
+        db.refresh(fingerprint)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar resultados no banco: {e}")
+    # ------------------------------------------------------------------
+
     return DetectionResult(
         deltas=delta_points,
         cores=core_points,
         ridge_counts=ridge_count_value,
         pattern_type=tipo,
-        image_width=int(image.shape[1]),
-        image_height=int(image.shape[0])
+        image_width=img_w,
+        image_height=img_h
     )

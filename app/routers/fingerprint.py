@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Path, Depends, HTTPException, Form, File, UploadFile
 from sqlalchemy.orm import Session
-from app.schemas.fingerprint import FingerprintCreate, FingerprintOut
+from app.schemas.fingerprint import FingerprintOut
 from datetime import datetime
 from app.models.volunteer import Volunteer
 from app.models.fingerprint import Fingerprint
@@ -9,6 +9,7 @@ from app.db import get_db
 from app.utils.process_images import process
 from app.utils.to_base_64 import to_base64
 import base64
+import json
 
 router = APIRouter(prefix="/fingerprints", tags=["Fingerprints"])
 
@@ -66,9 +67,6 @@ async def create_fingerprint(
     volunteer_id: int = Form(...),
     hand: HandEnum = Form(...),
     finger: FingerEnum = Form(...),
-    pattern_type: PatternEnum = Form(None),
-    delta: int = Form(None),
-    ridge_counts: int = Form(None),
     notes: str = Form(None),
     image_data: UploadFile = File(...),
     db: Session = Depends(get_db)
@@ -84,10 +82,7 @@ async def create_fingerprint(
         volunteer_id=volunteer_id,
         hand=hand,
         finger=finger,
-        pattern_type=pattern_type,
-        delta=delta,
         notes=notes,
-        ridge_counts=ridge_counts,
         image_data=image_bytes,
         image_filtered=image_filtered,
         created_at=datetime.now()
@@ -102,12 +97,13 @@ async def create_fingerprint(
         hand=new_fp.hand,
         finger=new_fp.finger,
         pattern_type=new_fp.pattern_type,
-        delta=new_fp.delta,
+        deltas=new_fp.deltas,
+        core=new_fp.core,
+        number_deltas=new_fp.number_deltas,
         notes=new_fp.notes,
-        ridge_counts=ridge_counts,
+        ridge_counts=new_fp.ridge_counts,
         image_data=to_base64(new_fp.image_data),
-        image_filtered=to_base64(new_fp.image_filtered),
-        created_at=new_fp.created_at
+        image_filtered=to_base64(new_fp.image_filtered)
     )
 
 @router.put("/{fingerprint_id}", response_model=FingerprintOut)
@@ -117,10 +113,12 @@ async def update_fingerprint(
     hand: HandEnum = Form(...),
     finger: FingerEnum = Form(...),
     pattern_type: PatternEnum | None = Form(None),
-    delta: int | None = Form(None),
+    number_deltas: int | None = Form(None),
     notes: str | None = Form(None),
     ridge_counts: int | None = Form(None),
     image_data: str | None = Form(None),
+    core: str | None = Form(None),
+    deltas: str | None = Form(None),
     image_filtered: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
@@ -135,12 +133,23 @@ async def update_fingerprint(
             detail=f"Fingerprint com ID {fingerprint_id} não encontrado",
         )
 
-    # Atualiza apenas os campos fornecidos
+    if core is not None:
+        core_data = json.loads(core)
+        existing_fingerprint.core = {
+            "x": int(core_data["x"]),
+            "y": int(core_data["y"]),
+        }
+    if deltas is not None:
+        deltas_data = json.loads(deltas)
+        existing_fingerprint.deltas = [
+            {"x": int(p["x"]), "y": int(p["y"])} for p in deltas_data
+        ]
+
     existing_fingerprint.volunteer_id = volunteer_id
     existing_fingerprint.hand = hand
     existing_fingerprint.finger = finger
     existing_fingerprint.pattern_type = pattern_type
-    existing_fingerprint.delta = delta
+    existing_fingerprint.number_deltas = number_deltas
     existing_fingerprint.notes = notes
     existing_fingerprint.ridge_counts = ridge_counts
     existing_fingerprint.updated_at = datetime.now()
@@ -154,20 +163,19 @@ async def update_fingerprint(
     db.commit()
     db.refresh(existing_fingerprint)
 
-    # Retorna o schema de saída
     return FingerprintOut(
         id=existing_fingerprint.id,
         volunteer_id=existing_fingerprint.volunteer_id,
         hand=existing_fingerprint.hand,
         finger=existing_fingerprint.finger,
         pattern_type=existing_fingerprint.pattern_type,
-        delta=existing_fingerprint.delta,
+        number_deltas=existing_fingerprint.number_deltas,
         notes=existing_fingerprint.notes,
         ridge_counts=existing_fingerprint.ridge_counts,
+        core = existing_fingerprint.core,
+        deltas = existing_fingerprint.deltas,
         image_data=existing_fingerprint.image_data,
         image_filtered=existing_fingerprint.image_filtered,
-        created_at=existing_fingerprint.created_at,
-        updated_at=existing_fingerprint.updated_at,
     )
 
 @router.delete("/{fingerprint_id}")
