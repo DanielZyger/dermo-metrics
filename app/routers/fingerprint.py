@@ -166,6 +166,8 @@ async def update_fingerprint(
         ridge_counts=existing_fingerprint.ridge_counts,
         core = existing_fingerprint.core,
         deltas = existing_fingerprint.deltas,
+        image_data= existing_fingerprint.image_data,
+        image_filtered= existing_fingerprint.image_filtered
     )
 
 @router.delete("/{fingerprint_id}")

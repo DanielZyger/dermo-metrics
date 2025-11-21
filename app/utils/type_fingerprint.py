@@ -55,7 +55,6 @@ def _infer_loop_side(
 
     return "left" if x_mean < center else "right"
 
-
 def detect_fingerprint_type(
     *,
     image_gray: Optional["np.ndarray"] = None,
@@ -64,66 +63,60 @@ def detect_fingerprint_type(
     detector=None,
     block_size: int = 16,
     min_coherence: float = 0.5,
-    hand: Optional[str] = None,   # <--- NOVO: "left" ou "right"
+    hand: Optional[str] = None,
 ) -> Tuple[str, Dict[str, int]]:
-
     import numpy as np  # type: ignore
 
+    # 1) Se não recebemos deltas/cores, usamos o detector
     if (deltas is None or cores is None):
         if detector is None:
-            raise ValueError("Forneça 'deltas' e 'cores', ou um 'detector' com método detect().")
+            raise ValueError(
+                "Forneça 'deltas' e 'cores', ou um 'detector' com método detect()."
+            )
         if image_gray is None:
             raise ValueError("Quando usando 'detector', passe também 'image_gray'.")
 
-        det_obj = detector
         try:
-            if callable(detector) and not hasattr(detector, "detect"):
-                det_obj = detector(image_gray)
+            # detector pode ser classe ou instância
+            if isinstance(detector, type):
+                det_obj = detector(image_gray)  # classe → instancia
+            else:
+                det_obj = detector               # instância já criada
 
             if not hasattr(det_obj, "detect"):
-                raise ValueError("Detector passado não possui método 'detect(block_size, min_coherence)'.")
+                raise ValueError(
+                    "Detector passado não possui método 'detect(block_size, min_coherence)'."
+                )
 
             deltas_detected, cores_detected = det_obj.detect(
                 block_size=block_size,
-                min_coherence=min_coherence
+                min_coherence=min_coherence,
             )
+
+            # No seu caso, deltas_detected / cores_detected são listas de dicts
             deltas = deltas_detected or []
             cores = cores_detected or []
         except Exception as e:
             raise RuntimeError(f"Falha ao executar detector: {e}") from e
 
-    # garantir listas
+    # 2) garante listas
     deltas = deltas or []
     cores = cores or []
 
-    # 1) tipo base (sem mão)
+    # 3) tipo base (sem mão)
     tipo_base = type_from_points(deltas=deltas, cores=cores)
-
-    # 2) por padrão, resultado é o tipo base
     tipo_final = tipo_base
 
-    # 3) se for loop e tiver mão, refina para ulnar/radial
+    # 4) refino para ulnar/radial se for loop e hand informado
     if tipo_base == "loop" and hand is not None:
-        hand_value = str(hand).lower()  # funciona com enums também
-
+        hand_value = str(hand).lower()
         loop_side = _infer_loop_side(deltas=deltas, cores=cores, image_gray=image_gray)
-        # loop_side: "left" ou "right"
 
         if hand_value in ("left", "left_hand", "esquerda", "mao_esquerda"):
-            # mão esquerda
-            if loop_side == "left":
-                tipo_final = "ulnar_loop"
-            else:
-                tipo_final = "radial_loop"
-
+            tipo_final = "radial_loop" if loop_side == "left" else "ulnar_loop"
         elif hand_value in ("right", "right_hand", "direita", "mao_direita"):
-            # mão direita
-            if loop_side == "right":
-                tipo_final = "ulnar_loop"
-            else:
-                tipo_final = "radial_loop"
+            tipo_final = "radial_loop" if loop_side == "right" else "ulnar_loop"
         else:
-            # mão desconhecida → mantém genérico "loop"
             tipo_final = "loop"
 
     meta = {"n_deltas": len(deltas), "n_cores": len(cores)}
