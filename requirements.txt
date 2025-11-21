@@ -5,7 +5,11 @@ fastapi
 uvicorn
 python-dotenv
 python-multipart
-
 matplotlib
-# opencv-python
-# numpy
+opencv-python
+numpy
+PyJWT
+fingerprint-enhancer
+Authlib
+httpx
+itsdangerous
