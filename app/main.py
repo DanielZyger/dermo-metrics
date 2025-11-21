@@ -13,7 +13,8 @@ app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "su
 
 origins = [
     "http://localhost:8080",
-    "http://127.0.0.1:8080"
+    "http://127.0.0.1:8080",
+    "https://web-dermo-metrics.onrender.com"
 ]
 
 app.add_middleware(
