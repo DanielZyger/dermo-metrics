@@ -9,6 +9,7 @@ from app.db import get_db
 import jwt
 import os
 
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:8080")
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -55,9 +56,9 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
             has_projects = len(user.projects) > 0
 
             if has_projects:
-                redirect_url = f"http://localhost:8080/home?token={jwt_token}&user_id={user.id}"
+                redirect_url = f"{FRONTEND_BASE_URL}/home?token={jwt_token}&user_id={user.id}"
             else:
-                redirect_url = f"http://localhost:8080/create-project?token={jwt_token}&user_id={user.id}"
+                redirect_url = f"{FRONTEND_BASE_URL}/create-project?token={jwt_token}&user_id={user.id}"
 
         return RedirectResponse(url=redirect_url)
 
