@@ -475,18 +475,11 @@ async def detect_singular_points(
                 if d is not None and "x" in d and "y" in d
             ]
     
-            core_points: List[DetectionPoint] = []
-            if (
-                isinstance(fingerprint.core, dict)
-                and "x" in fingerprint.core
-                and "y" in fingerprint.core
-            ):
-                core_points.append(
-                    DetectionPoint(
-                        x=int(fingerprint.core.get("x")),
-                        y=int(fingerprint.core.get("y")),
-                    )
-                )
+            core_points = [
+                DetectionPoint(x=int(d.get("x")), y=int(d.get("y")))
+                for d in fingerprint.core
+                if d is not None and "x" in d and "y" in d
+            ]
     
             return DetectionResult(
                 deltas=delta_points,
