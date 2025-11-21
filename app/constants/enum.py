@@ -17,8 +17,11 @@ class FingerEnum(enum.Enum):
     pinky = "pinky"
 
 class PatternEnum(enum.Enum):
+    radial_loop = "radial_loop"
+    ulnar_loop = "ulnar_loop"
     loop = "loop"
     whorl = "whorl"
+    double_whorl = "double_whorl"
     arch = "arch"
 
 class VolunteerStatuses(enum.Enum):

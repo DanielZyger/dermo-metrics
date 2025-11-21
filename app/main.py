@@ -2,7 +2,10 @@ from fastapi import FastAPI
 from app.routers import user, fingerprint, auth, volunteer, project, image_detection
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.formparsers import MultiPartParser
 import os
+
+MultiPartParser.max_part_size = 10 * 1024 * 1024  # 10 MB
 
 app = FastAPI(title="TCC Dermatóglifo API", version="1.0")
 

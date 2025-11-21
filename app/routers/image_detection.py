@@ -27,6 +27,7 @@ class DetectionPoint(BaseModel):
 class DetectionResult(BaseModel):
     deltas: List[DetectionPoint]
     cores: List[DetectionPoint]
+    number_deltas: int
     ridge_counts: Optional[int] = None
     pattern_type: Optional[str] = None
     image_width: int = 700
@@ -432,7 +433,7 @@ async def detect_singular_points(
         raise HTTPException(status_code=500, detail=f"Erro ao decodificar imagem: {e}")
 
     # 🚀 EARLY RETURN: se fingerprint já tem core e deltas, não processa de novo
-    if fingerprint.core and fingerprint.deltas and isinstance(fingerprint.deltas, list) and len(fingerprint.deltas) > 0:
+    # if fingerprint.core and fingerprint.deltas and isinstance(fingerprint.deltas, list) and len(fingerprint.deltas) > 0:
         try:
             # Converte deltas salvos no banco para DetectionPoint
             delta_points = [
@@ -456,6 +457,7 @@ async def detect_singular_points(
             return DetectionResult(
                 deltas=delta_points,
                 cores=core_points,
+                number_deltas = len(delta_points),
                 ridge_counts=fingerprint.ridge_counts,
                 pattern_type=fingerprint.pattern_type,
                 image_width=img_w,
@@ -465,8 +467,6 @@ async def detect_singular_points(
             # Se algo der errado ao ler os dados do banco, cai para o fluxo normal
             # de detecção, em vez de quebrar a rota inteira
             pass
-
-    # 🔽 A partir daqui mantém o fluxo original de detecção
 
     try:
         detector = SimpleFingerprintDetector(image)
@@ -486,55 +486,73 @@ async def detect_singular_points(
     delta_points = [DetectionPoint(x=int(round(d['x'])), y=int(round(d['y']))) for d in deltas] if deltas else []
     core_points = [DetectionPoint(x=int(round(c['x'])), y=int(round(c['y']))) for c in cores] if cores else []
 
-    try:
-        tipo, meta = detect_fingerprint_type(deltas=deltas, cores=cores)
-    except Exception:
-        tipo = None
+    # 🔹 NOVO: regra simples para ARCO (sem core e, no máximo, 1 delta)
+    n_deltas = len(delta_points)
+    n_cores = len(core_points)
 
-    ridge_count_value: Optional[int] = None
-    nearest_core: Optional[DetectionPoint] = None
+    tipo: Optional[str] = None
 
-    if len(delta_points) > 0 and len(core_points) > 0:
-        d = delta_points[0]
-        # encontra core mais próximo
-        d_coords = np.array([d.x, d.y])
-        cores_coords = np.array([[c.x, c.y] for c in core_points])
-        dists = np.linalg.norm(cores_coords - d_coords, axis=1)
-        nearest_idx = int(np.argmin(dists))
-        nearest_core = core_points[nearest_idx]
+    # Caso típico de arco: nenhum core e 0 ou 1 delta perdido (ruído)
+    if n_cores == 0 and n_deltas <= 1:
+        tipo = "arch"
+        # descarta possíveis pontos falsos
+        delta_points = []
+        core_points = []
+        ridge_count_value: Optional[int] = 0
+    else:
+        # caso contrário, usa o detector de tipo normal
+        try:
+            tipo = detect_fingerprint_type(
+                image_gray=image,
+                detector=SimpleFingerprintDetector,
+                hand=fingerprint.hand,
+            )
+        except Exception:
+            tipo = None
+
+        ridge_count_value: Optional[int] = None
+        nearest_core: Optional[DetectionPoint] = None
+
+        if len(delta_points) > 0 and len(core_points) > 0:
+            d = delta_points[0]
+            # encontra core mais próximo
+            d_coords = np.array([d.x, d.y])
+            cores_coords = np.array([[c.x, c.y] for c in core_points])
+            dists = np.linalg.norm(cores_coords - d_coords, axis=1)
+            nearest_idx = int(np.argmin(dists))
+            nearest_core = core_points[nearest_idx]
+
+            try:
+                ridge_count_value = int(count_ridges_between_minimal(
+                    image_gray=image,
+                    p1=(d.x, d.y),
+                    p2=(nearest_core.x, nearest_core.y),
+                    thickness=25
+                ))
+            except Exception:
+                ridge_count_value = None
 
         try:
-            ridge_count_value = int(count_ridges_between_minimal(
-                image_gray=image,
-                p1=(d.x, d.y),
-                p2=(nearest_core.x, nearest_core.y),
-                thickness=25
-            ))
-        except Exception:
-            ridge_count_value = None
+            fingerprint.pattern_type = tipo if tipo is not None else None
+            fingerprint.ridge_counts = ridge_count_value
 
-    try:
-        fingerprint.pattern_type = tipo if tipo is not None else None
-        fingerprint.ridge_counts = ridge_count_value
+            if core_points:
+                # se ainda existirem cores (não é arco), salva normalmente
+                c = core_points[0]
+                fingerprint.core = {"x": int(c.x), "y": int(c.y)}
+            else:
+                fingerprint.core = None
 
-        if nearest_core:
-            fingerprint.core = {"x": int(nearest_core.x), "y": int(nearest_core.y)}
-        elif core_points:
-            c = core_points[0]
-            fingerprint.core = {"x": int(c.x), "y": int(c.y)}
-        else:
-            fingerprint.core = None
+            if delta_points:
+                fingerprint.deltas = [{"x": int(p.x), "y": int(p.y)} for p in delta_points]
+            else:
+                fingerprint.deltas = None
 
-        if delta_points:
-            fingerprint.deltas = [{"x": int(p.x), "y": int(p.y)} for p in delta_points]
-        else:
-            fingerprint.deltas = None
-
-        db.add(fingerprint)
-        db.commit()
-        db.refresh(fingerprint)
-    except Exception as e:
-        db.rollback()
+            db.add(fingerprint)
+            db.commit()
+            db.refresh(fingerprint)
+        except Exception as e:
+            db.rollback()
         raise HTTPException(status_code=500, detail=f"Erro ao salvar resultados no banco: {e}")
     # ------------------------------------------------------------------
 
@@ -542,6 +560,7 @@ async def detect_singular_points(
         deltas=delta_points,
         cores=core_points,
         ridge_counts=ridge_count_value,
+        number_deltas = len(delta_points),
         pattern_type=tipo,
         image_width=img_w,
         image_height=img_h

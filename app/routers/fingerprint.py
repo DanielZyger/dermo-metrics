@@ -116,10 +116,8 @@ async def update_fingerprint(
     number_deltas: int | None = Form(None),
     notes: str | None = Form(None),
     ridge_counts: int | None = Form(None),
-    image_data: str | None = Form(None),
     core: str | None = Form(None),
     deltas: str | None = Form(None),
-    image_filtered: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
     existing_fingerprint = (
@@ -154,12 +152,6 @@ async def update_fingerprint(
     existing_fingerprint.ridge_counts = ridge_counts
     existing_fingerprint.updated_at = datetime.now()
 
-    if image_data is not None:
-        existing_fingerprint.image_data = base64.b64decode(image_data)
-    
-    if image_filtered is not None:
-        existing_fingerprint.image_filtered = base64.b64decode(image_filtered)
-
     db.commit()
     db.refresh(existing_fingerprint)
 
@@ -174,8 +166,6 @@ async def update_fingerprint(
         ridge_counts=existing_fingerprint.ridge_counts,
         core = existing_fingerprint.core,
         deltas = existing_fingerprint.deltas,
-        image_data=existing_fingerprint.image_data,
-        image_filtered=existing_fingerprint.image_filtered,
     )
 
 @router.delete("/{fingerprint_id}")
