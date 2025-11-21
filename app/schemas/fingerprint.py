@@ -23,7 +23,7 @@ class FingerprintOut(BaseModel):
     notes: Optional[str]
     pattern_type: Optional[PatternEnum]
     ridge_counts: Optional[int]
-    core: Optional[Point]
+    core: Optional[List[Point]]
     deltas: Optional[List[Point]]
     image_data: Optional[bytes]
     image_filtered: Optional[bytes]

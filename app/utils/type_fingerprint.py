@@ -1,4 +1,5 @@
 from typing import List, Dict, Optional, Tuple
+import numpy as np 
 
 FINGERPRINT_TYPES = (
     "arch",
@@ -37,14 +38,7 @@ def _infer_loop_side(
     cores: List[Dict[str, int]],
     image_gray: Optional["np.ndarray"] = None,
 ) -> str:
-    """
-    Tenta inferir de que lado a presilha está:
-      - "left"  → mais à esquerda da digital
-      - "right" → mais à direita da digital
-    Usa a média das coordenadas x de deltas+cores em relação ao centro.
-    """
-    import numpy as np  # type: ignore
-
+   
     xs: List[int] = [d["x"] for d in deltas] + [c["x"] for c in cores]
     if not xs:
         # fallback arbitrário se não tiver nada

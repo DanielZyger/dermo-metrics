@@ -132,46 +132,51 @@ class SimpleFingerprintDetector:
     def compute_poincare_index(self, orientation, coherence, min_coherence=0.5):
         """
         Calcula índice de Poincaré numa grade de blocos.
-        Usa diferença angular com wrapping apropriado entre vizinhos em torno de um ponto.
-        Retorna matriz com índice (valores próximos a -1 para delta, +1 para core).
+        Valores típicos:
+          • ~ +0.5 → core (ponto central)
+          • ~ −0.5 → delta
         """
         h, w = orientation.shape
-        poincare = np.zeros((h, w))
+        poincare = np.zeros((h, w), dtype=np.float32)
 
-        # iterar em pontos internos (vizinhança 3x3 ou 4x4)
-        for i in range(1, h-1):
-            for j in range(1, w-1):
+        for i in range(1, h - 1):
+            for j in range(1, w - 1):
+                # ignora blocos de baixa coerência
                 if coherence[i, j] < min_coherence:
                     continue
 
-                # percorrer 8 vizinhos em sentido horário
+                # 8 vizinhos em ordem horária
                 neigh = [
-                    orientation[i-1, j],
-                    orientation[i-1, j+1],
-                    orientation[i, j+1],
-                    orientation[i+1, j+1],
-                    orientation[i+1, j],
-                    orientation[i+1, j-1],
-                    orientation[i, j-1],
-                    orientation[i-1, j-1]
+                    orientation[i - 1, j],
+                    orientation[i - 1, j + 1],
+                    orientation[i, j + 1],
+                    orientation[i + 1, j + 1],
+                    orientation[i + 1, j],
+                    orientation[i + 1, j - 1],
+                    orientation[i, j - 1],
+                    orientation[i - 1, j - 1],
                 ]
 
                 angle_sum = 0.0
                 for k in range(8):
                     a1 = neigh[k]
-                    a2 = neigh[(k+1) % 8]
+                    a2 = neigh[(k + 1) % 8]
                     diff = a2 - a1
-                    # wrap para -pi..pi
                     diff = self._wrap_angle(diff)
-                    # se o salto for maior que pi/2, reduzir usando pi (tratamento para orientação dobrada)
-                    if diff > np.pi/2:
+
+                    # orientação de cristas é pi-periódica → limitamos saltos
+                    if diff > np.pi / 2:
                         diff -= np.pi
-                    elif diff < -np.pi/2:
+                    elif diff < -np.pi / 2:
                         diff += np.pi
+
                     angle_sum += diff
 
-                poincare[i, j] = angle_sum / (2.0 * np.pi)
+                idx = angle_sum / (2.0 * np.pi)
+                poincare[i, j] = idx
 
+        # limpa valores absurdos
+        poincare[~np.isfinite(poincare)] = 0.0
         return poincare
 
     def refine_position(self, poincare, coherence, i, j, block_size, search_radius_blocks=2):
@@ -179,7 +184,7 @@ class SimpleFingerprintDetector:
         Refinamento sub-pixel:
         - pega região ao redor do bloco (em blocos)
         - calcula centro de massa ponderado por |poincare| * coherence local
-        - converte para coordenadas de pixels (central do bloco) com subpixel
+        - converte para coordenadas de pixels (centro do bloco) com subpixel
         """
         h, w = poincare.shape
 
@@ -192,15 +197,12 @@ class SimpleFingerprintDetector:
         region_pi = poincare[i_min:i_max, j_min:j_max]
         region_coh = coherence[i_min:i_max, j_min:j_max]
 
-        # peso: magnitude do indice * coerência (dá preferência a pontos fortes e coerentes)
         weight = np.abs(region_pi) * (region_coh + 1e-6)
 
         if np.sum(weight) < 1e-8:
-            # fallback: escolher pixel do centro
             refined_i = i
             refined_j = j
         else:
-            # coordenadas relativas na grade de blocos
             ys, xs = np.indices(weight.shape)
             y_c = np.sum(ys * weight) / np.sum(weight)
             x_c = np.sum(xs * weight) / np.sum(weight)
@@ -208,133 +210,154 @@ class SimpleFingerprintDetector:
             refined_i = i_min + y_c
             refined_j = j_min + x_c
 
-        # converter para coordenadas de pixels: cada bloco -> block_size pixels; usamos centro do bloco + offset subpixel
         y_pixel = refined_i * block_size + block_size / 2.0
         x_pixel = refined_j * block_size + block_size / 2.0
 
         return float(x_pixel), float(y_pixel)
 
-    def find_singular_points(self, poincare, coherence, block_size,
-                             min_coherence_override=None,
-                             radius_blocks=2):
+    def find_singular_points(
+        self,
+        poincare,
+        coherence,
+        block_size,
+        min_coherence_override=None,
+        radius_blocks=2,
+    ):
         """
-        Encontra deltas e cores:
-        - usa thresholds adaptativos baseados em percentis da coerência
-        - aplica refino sub-pixel
+        Encontra deltas e cores de forma mais robusta:
+        - usa magnitude típica do índice de Poincaré (≈ ±0.5)
+        - usa coerência, mas sem matar regiões de singularidade
+        - exige máximo local em |poincare|
         """
+        import numpy as np  # type: ignore
+
         h, w = poincare.shape
 
-        # thresholds adaptativos: usa percentis da coerência para evitar hardcoding
+        # Coerência válida
         coh_vals = coherence.flatten()
         coh_vals = coh_vals[~np.isnan(coh_vals)]
         if coh_vals.size == 0:
-            coh_median = 0.0
-        else:
-            coh_median = np.median(coh_vals)
+            return [], []
 
-        # parâmetros adaptativos
-        MIN_COHERENCE_DELTA = max(0.4, min(0.9, np.percentile(coh_vals, 55))) if coh_vals.size else 0.55
-        MIN_COHERENCE_CORE = max(0.5, min(0.95, np.percentile(coh_vals, 70))) if coh_vals.size else 0.75
+        # Em regiões de singularidade a coerência tende a ser um pouco menor.
+        # Então usamos limiares relativos à mediana, com piso absoluto.
+        coh_med = float(np.median(coh_vals))
 
-        # se user passou override, respeitar
+        base_coh_thr = max(0.4, coh_med * 0.7)      # para considerar ponto válido
+        delta_coh_thr = max(0.6, coh_med * 0.9)     # delta → mais exigente
+        core_coh_thr  = max(0.65, coh_med * 0.95)   # core → ainda mais exigente
+
         if min_coherence_override is not None:
-            MIN_COHERENCE_DELTA = max(MIN_COHERENCE_DELTA, min_coherence_override)
-            MIN_COHERENCE_CORE = max(MIN_COHERENCE_CORE, min_coherence_override)
+            # se o usuário pedir min_coherence maior, respeitamos
+            base_coh_thr  = min(base_coh_thr, min_coherence_override)
+            delta_coh_thr = max(delta_coh_thr, min_coherence_override)
+            core_coh_thr  = max(core_coh_thr, min_coherence_override)
+
+        # Só olha Poincaré onde a coerência não é extremamente baixa
+        valid_mask = coherence >= base_coh_thr
+        abs_pi_vals = np.abs(poincare[valid_mask])
+        abs_pi_vals = abs_pi_vals[~np.isnan(abs_pi_vals)]
+        if abs_pi_vals.size == 0:
+            return [], []
+
+        # magnitude típica de singularidade (clamp pra não ficar extremo)
+        pi_p90 = float(np.percentile(abs_pi_vals, 90))
+        min_pi_mag = max(0.2, min(0.7, pi_p90))
 
         deltas = []
         cores = []
 
-        # limites de Poincare para candidatos (ligeramente abertos)
-        DELTA_RANGE = (-0.9, -0.2)
-        CORE_RANGE = (0.2, 0.9)
-
-        # local_threshold para garantir máximo local
-        LOCAL_THRESHOLD = 0.9
-
-        # margem baseada em blocos para evitar bordas
+        # margem em blocos para evitar bordas
         MARGIN = max(1, radius_blocks + 1)
 
         for i in range(MARGIN, h - MARGIN):
             for j in range(MARGIN, w - MARGIN):
-                pi_value = poincare[i, j]
-                coh_value = coherence[i, j]
+                pi_value = float(poincare[i, j])
+                coh_value = float(coherence[i, j])
 
-                # Delta candidate
-                if DELTA_RANGE[0] < pi_value < DELTA_RANGE[1]:
-                    if coh_value < MIN_COHERENCE_DELTA:
+                if np.isnan(pi_value) or np.isnan(coh_value):
+                    continue
+
+                # coerência muito baixa ou magnitude muito pequena → descarta
+                if coh_value < base_coh_thr:
+                    continue
+                if abs(pi_value) < min_pi_mag:
+                    continue
+
+                # janela pequena para checar máximo local em |pi|
+                local_pi_abs = np.abs(poincare[i - 1 : i + 2, j - 1 : j + 2])
+
+                # ========= DELTA (índice negativo forte, próximo de -0.5) =========
+                if pi_value < 0:
+                    if coh_value < delta_coh_thr:
+                        continue
+                    # reforço: queremos algo relativamente perto de -0.5
+                    if abs(pi_value + 0.5) > 0.45:
+                        continue
+                    if abs(pi_value) < np.max(local_pi_abs):
                         continue
 
-                    local_region = np.abs(poincare[i-2:i+3, j-2:j+3])
-                    if np.abs(pi_value) < np.max(local_region) * LOCAL_THRESHOLD:
+                    x_px, y_px = self.refine_position(
+                        poincare,
+                        coherence,
+                        i,
+                        j,
+                        block_size,
+                        search_radius_blocks=radius_blocks,
+                    )
+                    deltas.append(
+                        {
+                            "x": x_px,
+                            "y": y_px,
+                            "index": pi_value,
+                            "coherence": coh_value,
+                        }
+                    )
+
+                # ========= CORE (índice positivo forte, próximo de +0.5) =========
+                else:
+                    if coh_value < core_coh_thr:
+                        continue
+                    if abs(pi_value - 0.5) > 0.45:
+                        continue
+                    if abs(pi_value) < np.max(local_pi_abs):
                         continue
 
-                    local_coh = coherence[i-2:i+3, j-2:j+3]
-                    avg_coh = float(np.mean(local_coh))
-
-                    if avg_coh < (MIN_COHERENCE_DELTA * 0.9):
-                        continue
-
-                    x_px, y_px = self.refine_position(poincare, coherence, i, j, block_size, search_radius_blocks=radius_blocks)
-                    deltas.append({
-                        'x': x_px,
-                        'y': y_px,
-                        'index': float(pi_value),
-                        'coherence': float(coh_value),
-                        'avg_coherence': avg_coh
-                    })
-
-                # Core candidate
-                elif CORE_RANGE[0] < pi_value < CORE_RANGE[1]:
-                    if coh_value < MIN_COHERENCE_CORE:
-                        continue
-
-                    local_region = poincare[i-2:i+3, j-2:j+3]
-                    if pi_value < np.max(local_region) * LOCAL_THRESHOLD:
-                        continue
-
-                    local_coh = coherence[i-2:i+3, j-2:j+3]
-                    avg_coh = float(np.mean(local_coh))
-
-                    if avg_coh < (MIN_COHERENCE_CORE * 0.95):
-                        continue
-
-                    # contar altos valores de coerência para robustez
-                    high_coh_count = int(np.sum(local_coh > (MIN_COHERENCE_CORE * 0.8)))
-
-                    # exigir pelo menos alguns blocos de coerência localmente
-                    if high_coh_count < 3:
-                        continue
-
-                    x_px, y_px = self.refine_position(poincare, coherence, i, j, block_size, search_radius_blocks=radius_blocks)
-                    cores.append({
-                        'x': x_px,
-                        'y': y_px,
-                        'index': float(pi_value),
-                        'coherence': float(coh_value),
-                        'avg_coherence': avg_coh,
-                        'high_coh_count': high_coh_count
-                    })
+                    x_px, y_px = self.refine_position(
+                        poincare,
+                        coherence,
+                        i,
+                        j,
+                        block_size,
+                        search_radius_blocks=radius_blocks,
+                    )
+                    cores.append(
+                        {
+                            "x": x_px,
+                            "y": y_px,
+                            "index": pi_value,
+                            "coherence": coh_value,
+                        }
+                    )
 
         return deltas, cores
 
     def remove_duplicates(self, points, min_distance=None):
         """
         Remove pontos muito próximos. min_distance pode ser absoluto ou relativo ao menor dimensão.
-        Se None, define como block_size * 3 (aprox). Aqui, os pontos já vêm em coordenadas de pixels.
+        Se None, define como ~3% da menor dimensão.
         Ordena por confiança (|index| * coherence).
         """
         if not points:
             return []
 
-        # definir min_distance relativo à imagem (ex.: 3% da menor dimensão)
         if min_distance is None:
             min_distance = max(10.0, min(self.width, self.height) * 0.03)
 
-        # score de ordenação: magnitude do índice * coerência * avg_coherence (quando disponível)
         def score(p):
-            idx = abs(p.get('index', 0.0))
-            coh = p.get('coherence', 0.0)
-            avg = p.get('avg_coherence', 0.0)
+            idx = abs(p.get("index", 0.0))
+            coh = p.get("coherence", 0.0)
+            avg = p.get("avg_coherence", 0.0)
             return idx * (coh + 1e-6) * (avg + 1e-6)
 
         pts_sorted = sorted(points, key=lambda p: score(p), reverse=True)
@@ -343,7 +366,7 @@ class SimpleFingerprintDetector:
         for pt in pts_sorted:
             keep = True
             for ex in filtered:
-                dist = math.hypot(pt['x'] - ex['x'], pt['y'] - ex['y'])
+                dist = math.hypot(pt["x"] - ex["x"], pt["y"] - ex["y"])
                 if dist < min_distance:
                     keep = False
                     break
@@ -352,28 +375,44 @@ class SimpleFingerprintDetector:
 
         return filtered
 
-    def detect(self, block_size=16, min_coherence=0.5):
+    def detect(self, block_size=16, min_coherence=0.4):
         # 1) Gradientes
         self.compute_gradients(blur_ksize=5)
 
+        # 2) Campo de orientação e coerência
         orientation, coherence, bs = self.compute_orientation_field(block_size)
 
         # 3) Suavizar orientação
         orientation = self.smooth_orientation(orientation, sigma=2.0)
 
         # 4) Poincaré index
-        poincare = self.compute_poincare_index(orientation, coherence, min_coherence=min_coherence)
+        poincare = self.compute_poincare_index(
+            orientation, coherence, min_coherence=min_coherence
+        )
 
         # 5) Encontrar candidatos e refinar
-        deltas, cores = self.find_singular_points(poincare, coherence, bs,
-                                                  min_coherence_override=min_coherence,
-                                                  radius_blocks=max(1, int(2 * (16 / max(8, block_size)))))
+        deltas, cores = self.find_singular_points(
+            poincare,
+            coherence,
+            bs,
+            min_coherence_override=min_coherence,
+            radius_blocks=max(1, int(2 * (16 / max(8, block_size)))),
+        )
 
         # 6) Remoção de duplicatas (distância relativa)
-        deltas = self.remove_duplicates(deltas, min_distance=max(8.0, min(self.width, self.height)*0.02))
-        cores = self.remove_duplicates(cores, min_distance=max(8.0, min(self.width, self.height)*0.03))
+        deltas = self.remove_duplicates(
+            deltas, min_distance=max(8.0, min(self.width, self.height) * 0.02)
+        )
+        cores = self.remove_duplicates(
+            cores, min_distance=max(8.0, min(self.width, self.height) * 0.03)
+        )
 
-        # retornar listas de dicionários (x,y podem ser float); a rota converte para int
+        # limita a no máximo 2 por tipo (caso haja múltiplos fortes)
+        if len(deltas) > 2:
+            deltas = deltas[:2]
+        if len(cores) > 2:
+            cores = cores[:2]
+
         return deltas, cores
 
 
@@ -396,16 +435,18 @@ def decode_binary_image(image_bytes: bytes) -> np.ndarray:
 @router.post("/detect-singular-points", response_model=DetectionResult)
 async def detect_singular_points(
     request: DetectionRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ) -> DetectionResult:
-    fingerprint = db.query(Fingerprint).filter(
-        Fingerprint.id == request.fingerprint_id
-    ).first()
+    fingerprint = (
+        db.query(Fingerprint)
+        .filter(Fingerprint.id == request.fingerprint_id)
+        .first()
+    )
 
     if not fingerprint:
         raise HTTPException(
             status_code=404,
-            detail=f"Fingerprint com ID {request.fingerprint_id} não encontrada"
+            detail=f"Fingerprint com ID {request.fingerprint_id} não encontrada",
         )
 
     if request.image_type == ImageTypeEnum.raw:
@@ -413,59 +454,59 @@ async def detect_singular_points(
         if not image_bytes:
             raise HTTPException(
                 status_code=400,
-                detail="A fingerprint não possui imagem raw (image_data)"
+                detail="A fingerprint não possui imagem raw (image_data)",
             )
     else:
         image_bytes = fingerprint.image_filtered
         if not image_bytes:
             raise HTTPException(
                 status_code=400,
-                detail="A fingerprint não possui imagem filtered (image_filtered)"
+                detail="A fingerprint não possui imagem filtered (image_filtered)",
             )
 
-    # Decodifica a imagem (usada apenas para largura/altura neste early-return
+    # Decodifica a imagem (usada apenas para largura/altura neste early-return)
     try:
         image = decode_binary_image(image_bytes)
         img_h, img_w = int(image.shape[0]), int(image.shape[1])
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao decodificar imagem: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Erro ao decodificar imagem: {e}"
+        )
 
-    # 🚀 EARLY RETURN: se fingerprint já tem core e deltas, não processa de novo
-    # if fingerprint.core and fingerprint.deltas and isinstance(fingerprint.deltas, list) and len(fingerprint.deltas) > 0:
+    # 🚀 EARLY RETURN (opcional) — se quiser reusar deltas/cores já salvos
+    if fingerprint.core and fingerprint.deltas and isinstance(fingerprint.deltas, list) and len(fingerprint.deltas) > 0:
         try:
-            # Converte deltas salvos no banco para DetectionPoint
             delta_points = [
-                DetectionPoint(
-                    x=int(d.get("x")),
-                    y=int(d.get("y"))
-                )
+                DetectionPoint(x=int(d.get("x")), y=int(d.get("y")))
                 for d in fingerprint.deltas
                 if d is not None and "x" in d and "y" in d
             ]
-
+    
             core_points: List[DetectionPoint] = []
-            if isinstance(fingerprint.core, dict) and "x" in fingerprint.core and "y" in fingerprint.core:
+            if (
+                isinstance(fingerprint.core, dict)
+                and "x" in fingerprint.core
+                and "y" in fingerprint.core
+            ):
                 core_points.append(
                     DetectionPoint(
                         x=int(fingerprint.core.get("x")),
-                        y=int(fingerprint.core.get("y"))
+                        y=int(fingerprint.core.get("y")),
                     )
                 )
-
+    
             return DetectionResult(
                 deltas=delta_points,
                 cores=core_points,
-                number_deltas = len(delta_points),
+                number_deltas=len(delta_points),
                 ridge_counts=fingerprint.ridge_counts,
                 pattern_type=fingerprint.pattern_type,
                 image_width=img_w,
-                image_height=img_h
+                image_height=img_h,
             )
-        except Exception as e:
-            # Se algo der errado ao ler os dados do banco, cai para o fluxo normal
-            # de detecção, em vez de quebrar a rota inteira
+        except Exception:
             pass
 
     try:
@@ -473,20 +514,31 @@ async def detect_singular_points(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao inicializar detector: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Erro ao inicializar detector: {e}"
+        )
 
     try:
         deltas, cores = detector.detect(
-            block_size=request.block_size,
-            min_coherence=request.min_coherence
+            block_size=request.block_size, min_coherence=request.min_coherence
         )
+        # print(len(cores))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro na detecção de singular points: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Erro na detecção de singular points: {e}"
+        )
 
-    delta_points = [DetectionPoint(x=int(round(d['x'])), y=int(round(d['y']))) for d in deltas] if deltas else []
-    core_points = [DetectionPoint(x=int(round(c['x'])), y=int(round(c['y']))) for c in cores] if cores else []
+    delta_points = (
+        [DetectionPoint(x=int(round(d["x"])), y=int(round(d["y"]))) for d in deltas]
+        if deltas
+        else []
+    )
+    core_points = (
+        [DetectionPoint(x=int(round(c["x"])), y=int(round(c["y"]))) for c in cores]
+        if cores
+        else []
+    )
 
-    # 🔹 NOVO: regra simples para ARCO (sem core e, no máximo, 1 delta)
     n_deltas = len(delta_points)
     n_cores = len(core_points)
 
@@ -515,7 +567,6 @@ async def detect_singular_points(
 
         if len(delta_points) > 0 and len(core_points) > 0:
             d = delta_points[0]
-            # encontra core mais próximo
             d_coords = np.array([d.x, d.y])
             cores_coords = np.array([[c.x, c.y] for c in core_points])
             dists = np.linalg.norm(cores_coords - d_coords, axis=1)
@@ -523,28 +574,31 @@ async def detect_singular_points(
             nearest_core = core_points[nearest_idx]
 
             try:
-                ridge_count_value = int(count_ridges_between_minimal(
-                    image_gray=image,
-                    p1=(d.x, d.y),
-                    p2=(nearest_core.x, nearest_core.y),
-                    thickness=25
-                ))
+                ridge_count_value = int(
+                    count_ridges_between_minimal(
+                        image_gray=image,
+                        p1=(d.x, d.y),
+                        p2=(nearest_core.x, nearest_core.y),
+                        thickness=25,
+                    )
+                )
             except Exception:
                 ridge_count_value = None
 
+        # persiste no banco (sem quebrar a rota se falhar)
         try:
             fingerprint.pattern_type = tipo if tipo is not None else None
             fingerprint.ridge_counts = ridge_count_value
 
             if core_points:
-                # se ainda existirem cores (não é arco), salva normalmente
-                c = core_points[0]
-                fingerprint.core = {"x": int(c.x), "y": int(c.y)}
+                fingerprint.core = [{"x": int(p.x), "y": int(p.y)} for p in core_points]
             else:
                 fingerprint.core = None
 
             if delta_points:
-                fingerprint.deltas = [{"x": int(p.x), "y": int(p.y)} for p in delta_points]
+                fingerprint.deltas = [
+                    {"x": int(p.x), "y": int(p.y)} for p in delta_points
+                ]
             else:
                 fingerprint.deltas = None
 
@@ -553,15 +607,17 @@ async def detect_singular_points(
             db.refresh(fingerprint)
         except Exception as e:
             db.rollback()
-        raise HTTPException(status_code=500, detail=f"Erro ao salvar resultados no banco: {e}")
-    # ------------------------------------------------------------------
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erro ao salvar resultados no banco: {e}",
+            )
 
     return DetectionResult(
         deltas=delta_points,
         cores=core_points,
         ridge_counts=ridge_count_value,
-        number_deltas = len(delta_points),
+        number_deltas=len(delta_points),
         pattern_type=tipo,
         image_width=img_w,
-        image_height=img_h
+        image_height=img_h,
     )

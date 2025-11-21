@@ -133,10 +133,10 @@ async def update_fingerprint(
 
     if core is not None:
         core_data = json.loads(core)
-        existing_fingerprint.core = {
-            "x": int(core_data["x"]),
-            "y": int(core_data["y"]),
-        }
+        existing_fingerprint.core = [
+            {"x": int(p["x"]), "y": int(p["y"])} for p in core_data
+        ]
+
     if deltas is not None:
         deltas_data = json.loads(deltas)
         existing_fingerprint.deltas = [
