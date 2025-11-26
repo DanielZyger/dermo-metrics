@@ -8,7 +8,6 @@ from app.constants.enum import FingerEnum, HandEnum, PatternEnum
 from app.db import get_db
 from app.utils.process_images import process
 from app.utils.to_base_64 import to_base64
-import base64
 import json
 
 router = APIRouter(prefix="/fingerprints", tags=["Fingerprints"])
